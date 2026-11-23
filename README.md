@@ -1,156 +1,158 @@
-# GGreg20_V3 → I2C-Übersetzer (RadSens-kompatibel)
+# GGreg20_V3 → I2C translator (RadSens compatible)
 
-Kleine Platine mit einem ATtiny1614, die die Impulse eines GGreg20_V3-Geigerzählers zählt und
-sich am I2C-Bus wie ein ClimateGuard **RadSens** verhält (Adresse `0x66`, Device-ID `0x7D`).
-Meshtastic erkennt die Platine dadurch ohne Firmware-Änderung als RadSens-Sensor.
+A small board with an ATtiny1614 that counts the pulses of a GGreg20_V3 Geiger counter module and
+behaves like a ClimateGuard **RadSens** on the I2C bus (address `0x66`, device ID `0x7D`).
+Meshtastic therefore detects the board as a RadSens sensor without any firmware change.
 
-**Stand: Firmware kompiliert, Schaltplan/PCB bestehen ERC und DRC – auf echter Hardware ist noch
-nichts getestet.** Die offenen Punkte stehen ganz unten.
+**Status: the firmware compiles and the schematic/PCB pass ERC and DRC, but nothing has been
+tested on real hardware yet.** The open points are listed at the bottom.
 
-## Erst lesen: Stromverbrauch
+## Read first: power consumption
 
-Der ATtiny braucht im Schlaf ca. 1 µA (Datenblattwert). Der eigentliche Verbraucher ist das
-GGreg20_V3 selbst: laut Hersteller **35 mA bei 5 V, 52 mA bei 3,7 V, 57 mA bei 3,3 V**, dauerhaft.
+The ATtiny draws about 1 µA in sleep (datasheet value). The real consumer is the GGreg20_V3
+itself: according to the vendor **35 mA at 5 V, 52 mA at 3.7 V, 57 mA at 3.3 V**, continuously.
 
-Deshalb schaltet die Platine die Versorgung des GGreg20 und betreibt es standardmäßig getaktet:
+The board therefore switches the GGreg20 supply and duty-cycles it by default:
 
-| Modus | GGreg20 an | mittlerer Strom bei 3,3 V |
+| Mode | GGreg20 on | Average current at 3.3 V |
 |---|---|---|
-| Low-Power (Default): alle 600 s für 15 s Aufwärmen + 60 s Messen | 12,5 % | ca. 7 mA |
-| Dauerbetrieb (`LP_MODE = 0`) | 100 % | ca. 57 mA |
+| Low power (default): every 600 s, 15 s warm-up + 60 s measuring | 12.5 % | approx. 7 mA |
+| Continuous (`LP_MODE = 0`) | 100 % | approx. 57 mA |
 
-Im Low-Power-Modus wird nur während der Messphasen gezählt. Das 220-s-Fenster des Registers
-`0x06` (das Meshtastic liest) erstreckt sich dann über die letzten knapp vier Messphasen, also
-rund 37 Minuten. Für Hintergrundüberwachung reicht das, kurze Ereignisse zwischen den Messphasen
-werden nicht erfasst. Zyklus und Messdauer sind einstellbar (siehe Register `0x20`–`0x24`).
+In low-power mode, pulses are only counted during the measuring phases. The 220 s window of
+register `0x06` (the one Meshtastic reads) then spans the last almost four measuring phases,
+i.e. roughly 37 minutes. That is sufficient for background monitoring, but short events between
+measuring phases are missed. Cycle period and measuring time are configurable (see registers
+`0x20`–`0x24`).
 
-## Anschluss
+## Connections
 
-| Stecker | Pins (Pin 1 = quadratisches Pad) | Zweck |
+| Connector | Pins (pin 1 = square pad) | Purpose |
 |---|---|---|
-| J1 `I2C` | VCC, GND, SCL, SDA | zum Meshtastic-Node, Pinbelegung wie RadSens, 3,3 V |
-| J3 `PWR` | −, + | geschaltete Versorgung zum GGreg20 (Anschluss „BAT") |
-| J4 `G OUT` | GND, OUT | Impulsausgang des GGreg20 |
-| J5 `VIN` | −, + | optionale eigene Versorgung für das GGreg20, 3,0–5,5 V |
-| J6 `INT` | OUT | Impuls des GGreg20 unverändert durchgeschleift |
-| J2 `UPDI` | UPDI, GND, VCC | Programmierung |
+| J1 `I2C` | VCC, GND, SCL, SDA | to the Meshtastic node, same pinout as RadSens, 3.3 V |
+| J3 `PWR` | −, + | switched supply to the GGreg20 ("BAT" connector) |
+| J4 `G OUT` | GND, OUT | pulse output of the GGreg20 |
+| J5 `VIN` | −, + | optional separate supply for the GGreg20, 3.0–5.5 V |
+| J6 `INT` | OUT | GGreg20 pulse passed through unchanged |
+| J2 `UPDI` | UPDI, GND, VCC | programming |
 
-Alle Stecker sind JST-XH-Footprints (2,5 mm); Stiftleisten oder direkt eingelötete Drähte passen
-ebenfalls. Die Beschriftung auf der Rückseite steht direkt am jeweiligen Pin.
+All connectors use JST XH footprints (2.5 mm); pin headers or directly soldered wires fit as
+well. The labels on the back are placed right next to each pin.
 
-**Lötjumper JP1** wählt, woher das GGreg20 versorgt wird:
+**Solder jumper JP1** selects where the GGreg20 is powered from:
 
-- `VCC` (Auslieferungszustand, gebrückt): aus den 3,3 V des I2C-Steckers. Der Node muss dann
-  ca. 60 mA liefern können. Das GGreg20 braucht wegen seiner Schutzdiode mindestens 3,0 V.
-- `VIN`: aus J5, z. B. direkt vom Akku oder aus 5 V. Dazu die Brücke VCC–Mitte auftrennen und
-  Mitte–VIN brücken. Effizienter, weil das GGreg20 bei höherer Spannung weniger Strom zieht.
+- `VCC` (as delivered, bridged): from the 3.3 V of the I2C connector. The node must then be able
+  to supply about 60 mA. Because of its protection diode the GGreg20 needs at least 3.0 V.
+- `VIN`: from J5, e.g. directly from the battery or from 5 V. Cut the bridge VCC–centre and
+  bridge centre–VIN instead. More efficient, because the GGreg20 draws less current at a higher
+  voltage.
 
-Die 3,3 V am I2C-Stecker müssen dauerhaft anliegen. Schaltet der Node die Sensorversorgung ab,
-verliert der ATtiny seine Messhistorie und beginnt neu.
+The 3.3 V on the I2C connector must be present permanently. If the node switches off the sensor
+supply, the ATtiny loses its measurement history and starts over.
 
-## Registerübersicht
+## Register overview
 
-RadSens-Register (Datenblatt `RadSens_datasheet_ENG.pdf` und offizielle Arduino-Library):
+RadSens registers (datasheet `RadSens_datasheet_ENG.pdf` and the official Arduino library):
 
-| Adresse | Inhalt | Zugriff |
+| Address | Content | Access |
 |---|---|---|
-| `0x00` | Device-ID `0x7D` | R |
-| `0x01` | Firmware-Version | R |
-| `0x03`–`0x05` | Dosisleistung, dynamisches Fenster (≤ 123 s), 0,1 µR/h, MSB zuerst | R |
-| `0x06`–`0x08` | Dosisleistung, festes Fenster 220 s, 0,1 µR/h, MSB zuerst | R |
-| `0x09`–`0x0A` | Impulszähler, wird beim Lesen gelöscht, MSB zuerst | R |
-| `0x0C` | Low-Power-Modus: 1 = getaktet, 0 = Dauerbetrieb | R/W, EEPROM |
-| `0x10` | I2C-Adresse (`0x03`–`0x77`) | R/W, EEPROM |
-| `0x11` | „HV-Generator": 1 = GGreg20 darf laufen, 0 = aus | R/W |
-| `0x12`–`0x13` | Empfindlichkeit in Impulsen/µR, LSB zuerst | R/W, EEPROM |
-| `0x14` | LED auf der Platine: 1 = an, 0 = aus | R/W, EEPROM |
+| `0x00` | Device ID `0x7D` | R |
+| `0x01` | Firmware version | R |
+| `0x03`–`0x05` | Dose rate, dynamic window (≤ 123 s), 0.1 µR/h, MSB first | R |
+| `0x06`–`0x08` | Dose rate, fixed 220 s window, 0.1 µR/h, MSB first | R |
+| `0x09`–`0x0A` | Pulse counter, cleared on read, MSB first | R |
+| `0x0C` | Low-power mode: 1 = duty-cycled, 0 = continuous | R/W, EEPROM |
+| `0x10` | I2C address (`0x03`–`0x77`) | R/W, EEPROM |
+| `0x11` | "HV generator": 1 = GGreg20 may run, 0 = off | R/W |
+| `0x12`–`0x13` | Sensitivity in pulses/µR, LSB first | R/W, EEPROM |
+| `0x14` | On-board LED: 1 = on, 0 = off | R/W, EEPROM |
 
-Eigene Erweiterungen:
+Extensions specific to this board:
 
-| Adresse | Inhalt | Zugriff |
+| Address | Content | Access |
 |---|---|---|
-| `0x20`–`0x21` | Zyklusdauer in s, LSB zuerst (Default 600) | R/W, EEPROM |
-| `0x22`–`0x23` | Messdauer pro Zyklus in s, LSB zuerst (Default 60) | R/W, EEPROM |
-| `0x24` | Aufwärmzeit in s (Default 15) | R/W, EEPROM |
-| `0x25` | Status: Bit 0 GGreg20 versorgt, Bit 1 zählt, Bit 2 Fenster voll, Bit 3 Taktung aktiv | R |
-| `0x26` | Sekunden im 220-s-Fenster | R |
-| `0x28`–`0x29` | Restsekunden der aktuellen Phase, LSB zuerst | R |
+| `0x20`–`0x21` | Cycle period in s, LSB first (default 600) | R/W, EEPROM |
+| `0x22`–`0x23` | Measuring time per cycle in s, LSB first (default 60) | R/W, EEPROM |
+| `0x24` | Warm-up time in s (default 15) | R/W, EEPROM |
+| `0x25` | Status: bit 0 GGreg20 powered, bit 1 counting, bit 2 window full, bit 3 duty cycling active | R |
+| `0x26` | Seconds in the 220 s window | R |
+| `0x28`–`0x29` | Seconds remaining in the current phase, LSB first | R |
 
-Berechnung wie im RadSens-Datenblatt: `µR/h = Impulse × 3600 / (Empfindlichkeit × Sekunden)`.
-Empfindlichkeit **105** für das SBM-20 (Default), **74** für das J305. 100 µR/h ≈ 1 µSv/h.
+Calculation as in the RadSens datasheet: `µR/h = pulses × 3600 / (sensitivity × seconds)`.
+Sensitivity **105** for the SBM-20 (default), **74** for the J305. 100 µR/h ≈ 1 µSv/h.
 
-Abweichungen vom Original:
+Deviations from the original:
 
-- Der Algorithmus des dynamischen Fensters ist im Datenblatt nicht beschrieben. Hier geht das
-  Fenster so weit zurück, bis 50 Impulse enthalten sind, höchstens 123 s.
-- J6 gibt den GGreg20-Impuls direkt weiter, nicht auf 11,2 ms gedehnt.
-- Ist die Zyklusdauer nicht größer als Messdauer + Aufwärmzeit, läuft das GGreg20 dauerhaft.
+- The algorithm of the dynamic window is not described in the datasheet. Here the window
+  reaches back until it contains 50 pulses, at most 123 s.
+- J6 passes the GGreg20 pulse on directly, not stretched to 11.2 ms.
+- If the cycle period is not greater than measuring time + warm-up time, the GGreg20 runs
+  continuously.
 
-Alle Defaults stehen in [firmware/src/config.h](firmware/src/config.h).
+All defaults are in [firmware/src/config.h](firmware/src/config.h).
 
 ## Meshtastic
 
-Nichts zu flashen: Meshtastic erkennt beim Booten an `0x66` die ID `0x7D` und liest danach
-Register `0x06`. Unter *Telemetry → Environment* die Messung aktivieren; der Wert erscheint als
-„Radiation" in µR/h. Nach dem Einschalten liefert die Platine etwa 16 s lang 0, bis die erste
-Messsekunde vorliegt.
+Nothing to flash: at boot Meshtastic finds the ID `0x7D` at address `0x66` and then reads
+register `0x06`. Enable the measurement under *Telemetry → Environment*; the value appears as
+"Radiation" in µR/h. After power-up the board reports 0 for about 16 s until the first measured
+second is available.
 
 ## Firmware
 
-ATtiny1614, bare-metal C, PlatformIO. 2,9 kB Flash, 485 Byte RAM.
+ATtiny1614, bare-metal C, PlatformIO. 2.9 kB flash, 485 bytes RAM.
 
 ```
 cd firmware
-pio run                                  # bauen
-pio run -t upload --upload-port COM5     # flashen
+pio run                                  # build
+pio run -t upload --upload-port COM5     # flash
 ```
 
-Programmiert wird über UPDI mit einem gewöhnlichen USB-Seriell-Adapter (SerialUPDI): Adapter-TX
-über 1–4,7 kΩ an UPDI, Adapter-RX direkt an UPDI, dazu GND und 3,3 V. Die Werks-Fuses passen.
-Beim Flashen wird das EEPROM gelöscht, die Einstellungen stehen danach wieder auf den Defaults.
+Programming is done via UPDI with an ordinary USB-serial adapter (SerialUPDI): adapter TX
+through 1–4.7 kΩ to UPDI, adapter RX directly to UPDI, plus GND and 3.3 V. The factory fuses are
+fine. Flashing erases the EEPROM, so the settings are back at their defaults afterwards.
 
-Der ATtiny schläft im Power-Down und wacht nur für einen Impuls, den Sekundentakt oder eine
-I2C-Adressierung auf. Die Dosisleistung wird erst berechnet, wenn der Host tatsächlich liest.
-Ein Watchdog (8 s) und ein Timeout für hängende I2C-Transaktionen verhindern, dass die Platine
-den Bus des Nodes blockiert.
+The ATtiny sleeps in power-down and only wakes up for a pulse, the one-second tick or an I2C
+address match. The dose rate is computed only when the host actually reads it. A watchdog (8 s)
+and a timeout for stuck I2C transactions prevent the board from blocking the node's bus.
 
 ## Hardware
 
-KiCad-9-Projekt in [hardware/](hardware/), 40 × 30 mm, zweilagig, Bauteile nur oben.
+KiCad 9 project in [hardware/](hardware/), 40 × 30 mm, two layers, components on the top side
+only.
 
-- [hardware/doc/schematic.pdf](hardware/doc/schematic.pdf), Renderings in [hardware/doc/](hardware/doc/)
-- Fertigungsdaten in [hardware/fab/](hardware/fab/): `gerber_ggreg_i2c_translator.zip`, `bom.csv`, `positions.csv`
+- [hardware/doc/schematic.pdf](hardware/doc/schematic.pdf), renderings in [hardware/doc/](hardware/doc/)
+- Fabrication data in [hardware/fab/](hardware/fab/): `gerber_ggreg_i2c_translator.zip`, `bom.csv`, `positions.csv`
 
-Schaltplan und PCB werden aus [hardware/gen/design.py](hardware/gen/design.py) erzeugt
-(Bauteile, Netze, Platzierung; die Leiterbahnen legt ein kleiner Router im Skript). Nach
-Änderungen dort alles neu erzeugen und prüfen:
+Schematic and PCB are generated from [hardware/gen/design.py](hardware/gen/design.py)
+(components, nets, placement; the traces are laid by a small router in the script). After
+changing it, regenerate and check everything with:
 
 ```
 powershell -ExecutionPolicy Bypass -File hardware\gen\build.ps1
 ```
 
-Wer lieber in KiCad von Hand weiterarbeitet, kann das tun; ein erneuter Skriptlauf überschreibt
-die Dateien dann aber.
+You can also continue by hand in KiCad, but running the script again will overwrite the files.
 
-Nicht bestückt (DNP), nur bei Bedarf:
+Not populated (DNP), only if needed:
 
-- **R1, R2** (4,7 kΩ): I2C-Pull-ups, falls der Node keine hat.
-- **R4** (100 kΩ): Pull-up am Impulseingang, falls der GGreg20-Ausgang keinen eigenen hat.
-- **Y1, C4, C5**: 32,768-kHz-Quarz für eine genaue Zeitbasis, dazu `USE_XTAL32K 1` setzen.
-  Ohne Quarz läuft der interne Oszillator, dessen Fehler direkt in die Dosisleistung eingeht
-  (typisch wenige Prozent, bei extremen Temperaturen mehr).
+- **R1, R2** (4.7 kΩ): I2C pull-ups, in case the node has none.
+- **R4** (100 kΩ): pull-up on the pulse input, in case the GGreg20 output has none of its own.
+- **Y1, C4, C5**: 32.768 kHz crystal for an accurate time base; also set `USE_XTAL32K 1`.
+  Without the crystal the internal oscillator is used, and its error goes directly into the
+  dose rate (typically a few percent, more at extreme temperatures).
 
-## Offene Punkte vor der Bestellung
+## Open points before ordering
 
-1. **Impulsausgang des GGreg20.** Der Hersteller nennt 3,0–3,3 V High und „etwa 0,7 V" Low,
-   aber weder Impulsbreite noch Ausgangsstufe. 0,7 V liegt knapp über dem garantierten
-   Low-Pegel des ATtiny (0,66 V bei 3,3 V), aber deutlich unter der typischen Schaltschwelle.
-   Am besten einmal mit dem Oszilloskop nachmessen. Reicht der Pegel nicht, ist R3 die Stelle
-   für eine Anpassung.
-2. **Polarität der GGreg20-Stecker.** Welcher Pin der beiden XH-Stecker Pin 1 ist, geht aus dem
-   Datenblatt nicht hervor. Vor dem Anstecken mit dem Multimeter gegen die Beschriftung prüfen.
-3. **Montagelöcher.** Zwei M3-Löcher im Abstand von 24 mm, aus der Maßzeichnung des GGreg20
-   abgelesen, nicht nachgemessen.
-4. **Aufwärmzeit.** 15 s sind aus der Herstellerangabe „10–15 Sekunden bis zum ersten Signal"
-   abgeleitet und eher vorsichtig gewählt.
-5. **Stromwerte.** ATtiny- und GGreg20-Ströme sind Datenblattwerte, nicht gemessen.
+1. **Pulse output of the GGreg20.** The vendor states 3.0–3.3 V high and "about 0.7 V" low, but
+   neither the pulse width nor the output stage. 0.7 V is slightly above the guaranteed low
+   level of the ATtiny (0.66 V at 3.3 V), but well below the typical switching threshold. Best
+   checked once with an oscilloscope. If the level is not sufficient, R3 is the place to adapt
+   it.
+2. **Polarity of the GGreg20 connectors.** The datasheet does not say which pin of the two XH
+   connectors is pin 1. Check against the labels with a multimeter before plugging in.
+3. **Mounting holes.** Two M3 holes 24 mm apart, read from the GGreg20 dimensional drawing, not
+   measured.
+4. **Warm-up time.** 15 s is derived from the vendor's "10–15 seconds until the first signal"
+   and chosen rather conservatively.
+5. **Current figures.** ATtiny and GGreg20 currents are datasheet values, not measured.

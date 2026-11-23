@@ -6997,8 +6997,8 @@
 		(layer "Edge.Cuts")
 		(uuid "efa1f57f-fc87-4224-8bb3-deb510187935")
 	)
-	(gr_text "RadSens 0x66"
-		(at 134.199999 103.3 0)
+	(gr_text "translator"
+		(at 134.199999 103 0)
 		(layer "F.SilkS")
 		(uuid "0043370f-c7e7-4884-8b09-c344e9bcd3e8")
 		(effects
